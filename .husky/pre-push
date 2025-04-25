@@ -1,0 +1,35 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Ir a la raíz del repositorio
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Obtener el nombre de la rama actual
+branchName="$(git rev-parse --abbrev-ref HEAD)"
+
+# Ejecutar solo en ramas relevantes de GitFlow
+if echo "$branchName" | grep -Eq '^(main|develop|release/.*)$'; then
+  echo "?? Detectando versión con GitVersion para la rama '$branchName'..."
+
+  # Obtener la versión usando GitVersion
+  version=$(dotnet gitversion /showvariable SemVer 2>&1 | tr -d '\r' | tr -d '[:space:]')
+
+  # Validar que no haya error en la salida
+  if echo "$version" | grep -q "Cannot find the .git directory\|An error occurred"; then
+    echo "? Error al obtener la versión con GitVersion:"
+    echo "$version"
+    exit 1
+  fi
+
+  # Verificar si el tag ya existe
+  if git rev-parse "v$version" >/dev/null 2>&1; then
+    echo "?? Tag v$version ya existe. No se creará uno nuevo."
+  else
+    echo "???  Creando tag v$version..."
+    git tag -a "v$version" -m "Versión $version"
+    git push origin "v$version" --no-verify
+    echo "? Tag v$version creado y enviado al remoto."
+  fi
+else
+  echo "?? Rama '$branchName' no está configurada para versionado automático. Nada que hacer."
+fi
